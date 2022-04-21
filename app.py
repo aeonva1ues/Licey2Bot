@@ -119,21 +119,6 @@ def navigation(message):
                 bot.send_message(message.chat.id, 'Ознакомиться с руководящим и педагогическим составом можно по ссылке: http://oren-licey2.ru/rukovodstvo.html')
         except:
             bot.send_message(message.chat.id, 'Ознакомиться с руководящим и педагогическим составом можно по ссылке: http://oren-licey2.ru/rukovodstvo.html')
-        # bot.send_message(message.chat.id, 'Секундочку..')
-        # print(f'{message.from_user.id} использовал кнопку "Руководящий состав"')
-        # 
-        # url = 'http://oren-licey2.ru/rukovodstvo.html'
-        # answer = site_parser.headSqdParse(url)
-        # content = ''
-        # # -2 чтобы пропустить нижнюю строчку
-        # if len(answer) != 0:
-        #     for i in range(len(answer)-2):
-        #         content = content + '\n' + answer[i]
-        #     bot.send_message(message.chat.id, content+'\n\nОзнакомиться можно по ссылке: http://oren-licey2.ru/rukovodstvo.html')
-        # else:
-        #     print('Руководящий состав выведен неудачно, отправил альтернативное сообщение')
-        #     bot.send_message(message.chat.id, 'Ознакомиться с руководящим и педагогическим составом можно по ссылке: http://oren-licey2.ru/rukovodstvo.html')
-        # 
     elif message.text == 'Приём в первый класс':
         bot.send_message(message.chat.id, 'Вся информация предоставлена по ссылке: http://oren-licey2.ru/post/priyom-v-1-klass1.html')
     elif message.text == 'Контакты лицея':
@@ -141,7 +126,6 @@ def navigation(message):
         bot.send_message(message.chat.id, f'📗 Контактная информация:\n{contacts}')
     elif message.text == 'Задать вопрос':
         if questions_count <= 4:
-            global user_fullname
             user_fullname = f'{message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username})'
             msg = bot.send_message(message.chat.id, 'Напишите мне ваш вопрос. Он будет передан администраторам.\nЕсли вы хотите отменить действия - отправьте в чат /cancel')
             bot.register_next_step_handler(msg, getQuestionText)
@@ -152,7 +136,6 @@ def getQuestionText(message):
     print(f'Пользователь {message.from_user.username} ({message.from_user.id}) написал текст: {message.text}')
     if cancelCommand(message):
         return
-    global user_fullname
     global messagesIdInAdmChats
     global admChatsId
     global questions_count
@@ -162,6 +145,7 @@ def getQuestionText(message):
     messagesIdInAdmChats = []
     admChatsId = []
     questions_count+=1
+    user_fullname = f'{message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username})'
     user_question_text = f'(ADMIN) Вопрос от пользователя {user_fullname}:\n\n{message.text}'
     with open('./settings/channel_admins.txt', 'r', encoding='utf-8') as file:
             for line in file:
@@ -566,13 +550,7 @@ while running:
         bot.polling()
         
     except Exception as error_text:
-<<<<<<< HEAD
         error_date = str(datetime.today()) 
         error_time = error_date.split()[1].split('.')[0]
         print(f'{error_time} Возникла ошибка: {error_text}. Бот отправлен на перезагрузку')
-        # bot.send_message(admin.DEV_ADMIN_ID, f'Возникла ошибка: {error_text}. Бот отправлен на перезагрузку')
         time.sleep(4)
-=======
-        print(f'Возникла ошибка: {error_text}. Бот отправлен на перезагрузку')
-        time.sleep(3)
->>>>>>> 7eb6c4a97388c350b68189ad9cb5817e8b13a611
