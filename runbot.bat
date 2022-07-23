@@ -1,4 +1,4 @@
 @echo off
 
-app.py
-pause
+start app.py
+start sendingNews.py

@@ -1,6 +1,6 @@
 ﻿import time
 from datetime import datetime
-from threading import Thread
+# from threading import Thread
 import telebot
 from telebot import types
 from settings import token
@@ -10,50 +10,23 @@ from filters import check_admin
 from filters import ban_list
 from licey_news import autoupdate
 from licey_news import admins_news
-from content_for_user import site_parser
-
 
 
 bot = telebot.TeleBot(token.TOKEN)
 running = False
+updating = False
 
-# АВТОМАТИЧЕСКАЯ ПРОВЕРКА ОБНОВЛЕНИЙ НА САЙТЕ ЛИЦЕЯ
-def check_time_to_update():
-    # АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ СПИСКА НОВОСТЕЙ В 12:00:00 ПО ВРЕМЕНИ КОМПЬЮТЕРА, DATE - STR
-    while True:
-        date = str(datetime.today()) 
-        time_to_update = date.split()[1].split('.')[0]
-        if time_to_update == '12:45:00':
-            url = 'http://oren-licey2.ru/rukovodstvo.html'
-            answer = site_parser.headSqdParse(url)
-            global content
-            content = ''
-            # -2 чтобы пропустить нижнюю строчку
-            if len(answer) != 0:
-                for i in range(len(answer)-2):
-                    content = content + '\n' + answer[i]
-                content = content + '\n\n\nОзнакомиться можно по ссылке: http://oren-licey2.ru/rukovodstvo.html'
-            else:
-                print('Руководящий состав выведен неудачно, отправил альтернативное сообщение')
-        if time_to_update == '08:00:00' or time_to_update == '15:00:00' or time_to_update == '18:00:00':
-            print('Началась проверка на наличие обновлений на сайте лицея..')
-        # ЕСЛИ ОБНОВЛЕНИЙ НЕТ
-            time.sleep(3)
-            if autoupdate.get_actual_news():
-                print('Обновление новостей не найдено')
-                pass
-        # ЕСЛИ ОБНОВЛЕНИЯ ЕСТЬ
-            # elif autoupdate.get_actual_news() == False:
-            else:
-                array_of_content = autoupdate.new_actual_news()
-                news_title = array_of_content[0]
-                img_link = array_of_content[1]
-                news_link = array_of_content[2]
-                news_data = array_of_content[3]
-                news_description = array_of_content[4]
-                bot.send_message(chatID.ID, f'❗️ Новость с сайта лицея\n📌 Заголовок: "{news_title}"\n©️ {news_description}\n🧷 Ссылка: {news_link}\n🕐 {news_data}\n\n#новости_лицея')
-                bot.send_photo(chatID.ID, img_link)
-                print('Последняя новость отправлена ботом')
+
+# СОЗДАНИЕ ЛОГА В ФАЙЛЕ
+def makeLog(activity):
+    with open('./admin_info/logs.txt', 'a', encoding='utf-8') as log:
+        try:
+            date = str(datetime.today())
+            display_date = date.split(".")[0]
+            log_text = f'{display_date} || {activity}\n'
+            return log.write(log_text)
+        except Exception as logging_error:
+            return print(f'Ошибка при логировании // {logging_error}')
 
 # 
 def sendImage(chatId: str, status: bool, path: str) -> bool:
@@ -69,9 +42,10 @@ def mainKeyboard():
     main_btn_head_sqd = types.KeyboardButton('Руководящий состав')
     main_btn_to_first_class = types.KeyboardButton('Приём в первый класс')
     main_btn_licey_contacts = types.KeyboardButton('Контакты лицея')
+    main_btn_licey_location = types.KeyboardButton('Расположение')
     main_btn_write_quest = types.KeyboardButton('Задать вопрос')
     main_keyboard = types.ReplyKeyboardMarkup(row_width=2)
-    return main_keyboard.add(main_btn_head_sqd, main_btn_to_first_class, main_btn_licey_contacts).add(main_btn_write_quest)
+    return main_keyboard.add(main_btn_head_sqd, main_btn_to_first_class, main_btn_licey_location, main_btn_licey_contacts).add(main_btn_write_quest)
 # ПРОВЕРКА НА ОТМЕНУ ДЕЙСТВИЯ (/CANCEL)
 def cancelCommand(message: str) -> bool:
     try:
@@ -92,6 +66,7 @@ def messageForBannedUser(message):
 @bot.message_handler(commands=['start'], is_banned = False)
 def startCommand(message):
     print(f'{message.from_user.id} использовал /start')
+    makeLog(f'{message.from_user.id} использовал /start')
     date = str(datetime.today()) 
     actual_time = date.split()[1].split('.')[0][:2]
     actual_time_int = int(actual_time)
@@ -111,10 +86,13 @@ def startCommand(message):
 @bot.message_handler(is_banned = False, content_types=['text'], func=lambda message: message.text[0] != '/')
 def navigation(message):
     if message.text == 'Руководящий состав':
-        global content
+        # global content
+        with open('./content_for_user/head_squad.txt', 'r', encoding='utf-8') as file:
+            head_squad_content = file.read()
+            head_squad_content = str(head_squad_content).strip()
         try:
-            if content != '':
-                bot.send_message(message.chat.id, content)
+            if head_squad_content != '':
+                bot.send_message(message.chat.id, head_squad_content)
             else:
                 bot.send_message(message.chat.id, 'Ознакомиться с руководящим и педагогическим составом можно по ссылке: http://oren-licey2.ru/rukovodstvo.html')
         except:
@@ -131,15 +109,15 @@ def navigation(message):
             bot.register_next_step_handler(msg, getQuestionText)
         else:
             bot.send_message(message.chat.id, 'Очередь переполнена, попробуйте обратиться немного позже')
+    elif message.text == 'Расположение':
+        bot.send_location(message.chat.id, 51.765715459216764, 55.13461504705226)
 
 def getQuestionText(message):
     print(f'Пользователь {message.from_user.username} ({message.from_user.id}) написал текст: {message.text}')
+    makeLog(f'Пользователь {message.from_user.username} ({message.from_user.id}) задал вопрос: {message.text}')
     if cancelCommand(message):
         return
-    global messagesIdInAdmChats
-    global admChatsId
     global questions_count
-    global admin_msg
     global questions_array
     global requests_count
     messagesIdInAdmChats = []
@@ -163,7 +141,7 @@ def getQuestionText(message):
                 except:
                     print('Ошибка при обработке файла channel_admins.txt (в app.py при отправке вопроса пользователем)')
     # МАССИВ СОДЕРЖИТ В СЕБЕ ВСЕ НЕОБХОДИМЫЕ ИД, ХРАНЯ ИХ ВМЕСТЕ В СЛОВАРЯХ
-    questions_array.append({'number': requests_count, 'm_id': messagesIdInAdmChats, 'c_id': admChatsId, 'user_c_id': message.chat.id, 'question_text': message.text})
+    questions_array.append({'number': requests_count, 'm_id': messagesIdInAdmChats, 'c_id': admChatsId, 'user_c_id': message.chat.id, 'question_text': message.text, 'user_fullname': user_fullname})
     requests_count +=1
     bot.send_message(message.chat.id, f'Ваш вопрос успешно отправлен! В ближайшее время вы получите ответ.\nВопросов в очереди (включая ваш): {questions_count}')
 
@@ -171,53 +149,151 @@ def getQuestionText(message):
 @bot.callback_query_handler(func=lambda callback: True)
 def adminAnswer(callback):
     global admin_answer_message_id
-    if callback.data == 'AnswerIt':
-        admin_answer_message_id = callback.message.id # ид сообщения, на которое отреагировал админ
-        msg = bot.send_message(callback.from_user.id, '(ADMIN) Введите ваш ответ для пользователя (одним сообщением).')
-        bot.register_next_step_handler(msg, adminAnswer)
-    elif callback.data == 'DeleteIt':
-        admin_answer_message_id = callback.message.id
-        msg = bot.send_message(callback.from_user.id, '(ADMIN) Введите причину удаления вопроса для пользователя')
-        bot.register_next_step_handler(msg, deleteQuestion)
+    global admin_start_writing_answer
+    if admin_start_writing_answer:
+        bot.send_message(callback.message.chat.id, '(ADMIN) Один из администраторов уже начал отвечать на вопрос. Пожалуйста, дождитесь его ответа, иначе могут возникнуть программные ошибки. В случае возникновения ошибки обратитесь к разработчику.')
+    else:
+        admin_start_writing_answer = True
+        if callback.data == 'AnswerIt':
+            admin_answer_message_id = callback.message.id # ид сообщения, на которое отреагировал админ
+            msg = bot.send_message(callback.from_user.id, '(ADMIN) Введите ваш ответ для пользователя (одним сообщением).')
+            bot.register_next_step_handler(msg, adminAnswer)
+        elif callback.data == 'DeleteIt':
+            admin_answer_message_id = callback.message.id
+            msg = bot.send_message(callback.from_user.id, '(ADMIN) Введите причину удаления вопроса для пользователя')
+            bot.register_next_step_handler(msg, deleteQuestion)
 
 def adminAnswer(message):
+    if cancelCommand(message):
+        return
     global admin_answer_message_id
     global questions_array
     global questions_count
-    global messagesIdInAdmChats # список id сообщений в чатах админов
-    global admChatsId # список id чатов админов
+    global admin_start_writing_answer # ФЛАГ, ОБОЗНАЧАЮЩИЙ ДЕЙСТВУЮЩЕЕ НАПИСАНИЕ ОТВЕТА НА ВОПРОС АДМИНИСТРАТОРОМ
     admins_answer = message.text
     questions_count-=1
+    admin_start_writing_answer = False
     for k in range(len(questions_array)):
         if admin_answer_message_id in questions_array[k]['m_id']:
             date = str(datetime.today())
             bot.send_message(questions_array[k]['user_c_id'], f'Пришел ответ на ваш вопрос: "{questions_array[k]["question_text"]}"\n\n{admins_answer}')
-            bot.send_message(message.chat.id, f'(ADMIN) Ответ пользователю отправлен!\n\nТекст вопроса: "{questions_array[k]["question_text"]}"\nВаш ответ: "{admins_answer}"\n\nДата:{date.split()[1].split(".")[0]}')
-            for i in range(len(admChatsId)):
+            bot.send_message(message.chat.id, f'(ADMIN) Ответ пользователю {questions_array[k]["user_fullname"]} отправлен!\n\nТекст вопроса: "{questions_array[k]["question_text"]}"\nВаш ответ: "{admins_answer}"\n\nДата:{date.split()[1].split(".")[0]}')
+            makeLog(f'Ответ пользователю {questions_array[k]["user_fullname"]} отправлен администратором {message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username}) || Текст вопроса: "{questions_array[k]["question_text"]}" || Ответ администратора: "{admins_answer}"')
+            for i in range(len(questions_array[k]["c_id"])):
                 bot.delete_message(questions_array[k]['c_id'][i], questions_array[k]['m_id'][i])
             del questions_array[k]
             break
 
 def deleteQuestion(message):
+    if cancelCommand(message):
+        return
     global admin_answer_message_id
     global questions_array
     global questions_count
-    global messagesIdInAdmChats
-    global admChatsId
+    global admin_start_writing_answer
     admins_answer = message.text
     questions_count-=1
+    admin_start_writing_answer = False
     for k in range(len(questions_array)):
         if admin_answer_message_id in questions_array[k]['m_id']:
             date = str(datetime.today())
             bot.send_message(questions_array[k]['user_c_id'], f'Ваш вопрос: "{questions_array[k]["question_text"]}" был удален администратором. Причина: {admins_answer}')
-            bot.send_message(message.chat.id, f'(ADMIN) Вопрос был удален. Ответ пользователю отправлен!\n\nТекст вопроса: "{questions_array[k]["question_text"]}"\nВаш ответ: "{admins_answer}"\n\nДата:{date.split()[1].split(".")[0]}')
-            for i in range(len(admChatsId)):
+            bot.send_message(message.chat.id, f'(ADMIN) Вопрос был удален. Ответ пользователю {questions_array[k]["user_fullname"]} отправлен!\n\nТекст вопроса: "{questions_array[k]["question_text"]}"\nВаш ответ: "{admins_answer}"\n\nДата:{date.split()[1].split(".")[0]}')
+            makeLog(f'Вопрос пользователя {questions_array[k]["user_fullname"]} был удален администратором {message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username}) || Текст вопроса: "{questions_array[k]["question_text"]}" || Причина, указанная администратором: "{admins_answer}"')
+            for i in range(len(questions_array[k]["c_id"])):
                 bot.delete_message(questions_array[k]['c_id'][i], questions_array[k]['m_id'][i])
             del questions_array[k]
             break
+
+
+# Жалоба по тех состовляющему
+@bot.message_handler(commands=['report'])
+def report(message):
+    msg = bot.send_message(message.chat.id, 'Опишите вашу жалобу, касающуюся бота или канала. Она будет передана напрямую разработчику на исправление.\nЕсли же у вас возникла претензия или вопрос к руководству лицея, то вы можете воспользоваться функцией "Задать вопрос", однако прежде, нажмите на /cancel для отмены технической жалобы.')
+    bot.register_next_step_handler(msg, report_text)
+
+
+def report_text(message):
+    if cancelCommand(message):
+        return
+    bot.send_message(admin.DEV_ADMIN_ID, f'(DEV) ЖАЛОБА от {message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username}):\n"{message.text}"')
+    makeLog('(DEV) ЖАЛОБА от {message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username}):\n"{message.text}"')
+    bot.send_message(message.chat.id, 'Ваша жалоба успешно отправлена. Обратный ответ не предусмотрен. Если у вас остались вопросы лично к разработчику или вы хотите предоставить скриншот ошибки, то обратитесь в личные сообщения: https://t.me/aeonva1ues')
+    return makeLog(f'{message.from_user.first_name} {message.from_user.last_name} ({message.from_user.username}) создал жалобу: {message.text}')
+
+
+# СПИСОК АДМИНИСТРАЦИИ БОТА
+@bot.message_handler(commands=['admins'])
+def show_admins(message):
+    if str(message.from_user.id) == admin.DEV_ADMIN_ID:
+        with open('./settings/channel_admins.txt', 'r', encoding='utf-8') as txt_file:
+            admin_list: str = txt_file.read()
+        return bot.send_message(message.chat.id, f'(DEV ADMIN) Состав администрации бота:\n{admin_list}')
+
+
+# БАН ПОЛЬЗОВАТЕЛЯ КОМАНДОЙ /fastban userid
+@bot.message_handler(commands=['fastban'])
+def fastban(message):
+    if str(message.from_user.id) == admin.DEV_ADMIN_ID:
+        command_text_arr = message.text.split()
+        if len(command_text_arr) == 2:
+            arg = command_text_arr[1] # ИД пользователя для блокировки
+            with open('./admin_panel/ban_list.txt', 'a', encoding='utf-8') as banlist_file:
+                banlist_file.write('\n'+arg)
+            bot.send_message(message.chat.id, f'(DEV) Пользователь {arg} заблокирован.')
+            makeLog('(DEV) Пользователь {arg} заблокирован')
+        else:
+            bot.send_message(message.chat.id, '(DEV) Используйте /fastban id для быстрой блокировки пользователя')
+
+
+# ПРОСМОТР ЛОГА (/logs count)
+@bot.message_handler(commands=['logs'])
+def show_logs(message):
+    if str(message.from_user.id) == admin.DEV_ADMIN_ID:
+        try:
+            commands_arr = message.text.split()
+            if len(commands_arr) == 2:
+                arg: int = int(commands_arr[1])
+                try:
+                    with open('./admin_info/logs.txt', 'r', encoding='utf-8') as logs:
+                        log_content = logs.read() # ПОЛНЫЙ ЛОГ
+                        log_strings_arr = log_content.split('\n') # МАССИВ ИЗ СТРОЧЕК ЛОГОВ
+                        log_strings_arr.reverse()
+                    logs_to_send_arr = log_strings_arr[0:arg+1]
+                    logs_ready_to_send = "\n\n".join(logs_to_send_arr)
+                    bot.send_message(message.chat.id, f'(DEV) Последние строчки логов ({arg}):\n{logs_ready_to_send}')
+                except:
+                    bot.send_message(message.chat.id,'(DEV) Ошибка в выгрузке логов')
+            else:
+                return bot.send_message(message.chat.id, '(DEV) Используйте /logs count, где count - кол-во строчек из логов')
+        except:
+            return bot.send_message(message.chat.id, '(DEV) Ошибка при использовании команды')
+
+
+# ОЧИСТКА ОЧЕРЕДИ ОТВЕТОВ НА ВОПРОСЫ (/wasc - writing answer status change)
+@bot.message_handler(commands=['wasc'])
+def writing_answer_status_change(message):
+    global admin_start_writing_answer
+    if str(message.from_user.id) == admin.DEV_ADMIN_ID:
+        admin_start_writing_answer = False
+        makeLog('DEV очистил очередь ответа на вопросы')
+        return bot.send_message(message.chat.id, '(DEV ADMIN) Очередь администрации на ответы пользователям успешно очищена.')
+
+
+# СТАТУС ОЧЕРЕДИ ОТВЕТОВ НА ВОПРОСЫ (/was - writing answer status)
+@bot.message_handler(commands=['was'])
+def writing_answer_status(message):
+    global admin_start_writing_answer
+    if str(message.from_user.id) == admin.DEV_ADMIN_ID:
+        if admin_start_writing_answer:
+            return bot.send_message(message.chat.id, '(DEV ADMIN) Очередь администрации на ответ пользователям занята')
+        else:
+            return bot.send_message(message.chat.id, '(DEV ADMIN) Очередь администрации на ответ пользователям свободна')
+
+
 # СТАТУС ОЧЕРЕДИ НА СОЗДАНИЕ НОВОСТИ С АККАУНТА РАЗРАБОТЧИКА
 @bot.message_handler(commands=['qstatus'])
-def clear_queque(message):
+def queque_status(message):
     global making_news
     if str(message.from_user.id) == admin.DEV_ADMIN_ID:
         if making_news == 0:
@@ -230,10 +306,12 @@ def clear_queque(message):
     global making_news
     if str(message.from_user.id) == admin.DEV_ADMIN_ID:
         making_news = 0
+        makeLog('DEV очистил очередь создания новостей')
         return bot.send_message(message.chat.id, '(DEV ADMIN) Очередь успешно очищена.')
 # СОЗДАНИЕ НОВОСТИ
 @bot.message_handler(is_admin=True, commands=['makenews'])
 def get_text(message):
+    makeLog(f'Администратор ({message.from_user.id}) {message.from_user.username} - {message.from_user.first_name} начал создание новости')
     global making_news
     if making_news == 0:
         making_news = 1
@@ -404,6 +482,7 @@ def userAcceptForMakingNews(message):
             bot.send_message(chatID.ID, admin_news_message.news_content)
             sendImage(chatID.ID, withPhoto, admin_news_message.news_image_path)
             bot.send_message(message.chat.id, '(ADMIN) Новость отправлена!')
+            makeLog(f'Администратор ({message.from_user.id}) {message.from_user.username} - {message.from_user.first_name} создал новость')
             making_news = 0
         elif message.text.lower() == 'нет':
             btn_change_header = types.KeyboardButton('Заголовок')
@@ -535,6 +614,7 @@ if __name__ == '__main__':
     questions_count = 0 # количество вопросов в очереди
     requests_count = 0 # номер вопроса в словаре
     making_news = 0 # 1 - другой администратор создает новость, 0 - можно создавать новость
+    admin_start_writing_answer = False 
     questions_array = []
     running = True
     # ФИЛЬТР is_admin = True/False ДЛЯ ХАНДЛЕРОВ
@@ -543,9 +623,6 @@ if __name__ == '__main__':
 
 while running:
     try:
-        # АКТИВАЦИЯ ВТОРОГО ПОТОКА ДЛЯ АВТООБНОВЛЕНИЯ
-        t=Thread(target=check_time_to_update)
-        t.start()
         # ВКЛЮЧЕНИЕ ПОСТОЯННОЙ РАБОТЫ БОТА
         bot.polling()
         
